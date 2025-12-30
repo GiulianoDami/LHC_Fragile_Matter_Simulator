@@ -10,11 +10,11 @@ class PhysicsModel:
         # Physical constants (SI units)
         self.kB = 1.380649e-23  # Boltzmann constant
         self.c = 299792458     # Speed of light
-        self.hbar = 1.054571817e-34  # Reduced Planck constant
         self.m_p = 1.6726219e-27  # Proton mass
-        self.m_n = 1.67492749804e-27  # Neutron mass
-        self.m_d = 3.343583719e-27  # Deuteron mass
-        self.m_antid = 3.343583719e-27  # Antideuteron mass
+        self.m_n = 1.6749275e-27  # Neutron mass
+        self.m_d = 3.3435837e-27  # Deuteron mass
+        self.m_antid = 3.3435837e-27  # Antideuteron mass
+        self.hbar = 1.0545718e-34  # Reduced Planck constant
         
         # Energy thresholds
         self.deuteron_threshold = 2.224573e6 * 1.60218e-19  # Joules
@@ -23,66 +23,111 @@ class PhysicsModel:
         # Reaction cross-sections (approximate values)
         self.sigma_dd = 1e-28  # Deuteron-deuteron cross-section
         self.sigma_da = 1e-28  # Deuteron-antideuteron cross-section
-        
-    def calculate_temperature_evolution(self, initial_temp: float, 
-                                     time: np.ndarray, 
-                                     cooling_rate: float = 1e38) -> np.ndarray:
+        self.sigma_pp = 1e-28  # Proton-proton cross-section
+    
+    def temperature_evolution(self, t: float, T0: float, tau: float) -> float:
         """
-        Calculate temperature evolution over time based on cooling dynamics
+        Calculate temperature evolution over time following a cooling fireball model
         
         Args:
-            initial_temp: Initial temperature in Kelvin
-            time: Array of time points
-            cooling_rate: Rate of temperature decrease
+            t: Time in seconds
+            T0: Initial temperature (K)
+            tau: Cooling timescale (s)
             
         Returns:
-            Array of temperatures at each time point
+            Temperature at time t (K)
         """
-        # Simplified exponential cooling model
-        return initial_temp * np.exp(-cooling_rate * time)
+        return T0 * np.exp(-t / tau)
     
-    def calculate_deuteron_formation_probability(self, temperature: float) -> float:
+    def calculate_deuteron_yield(self, T: float, density: float) -> float:
         """
-        Calculate probability of deuteron formation at given temperature
+        Calculate deuteron formation probability based on temperature and density
         
-        Uses statistical mechanics approach based on binding energy
+        Args:
+            T: Temperature (K)
+            density: Particle density (m^-3)
+            
+        Returns:
+            Deuteron formation rate (per second)
         """
-        if temperature <= 0:
+        if T < 1e9:
             return 0.0
             
         # Boltzmann factor for deuteron formation
-        binding_energy = self.deuteron_threshold
-        boltzmann_factor = np.exp(-binding_energy / (self.kB * temperature))
+        boltzmann_factor = np.exp(-self.deuteron_threshold / (self.kB * T))
         
-        # Formation probability (normalized)
-        return min(1.0, boltzmann_factor)
-    
-    def calculate_antideuteron_formation_probability(self, temperature: float) -> float:
-        """
-        Calculate probability of antideuteron formation at given temperature
-        """
-        if temperature <= 0:
-            return 0.0
-            
-        binding_energy = self.antideuteron_threshold
-        boltzmann_factor = np.exp(-binding_energy / (self.kB * temperature))
+        # Formation rate proportional to density squared and Boltzmann factor
+        formation_rate = density**2 * boltzmann_factor * 1e-20
         
-        return min(1.0, boltzmann_factor)
+        return formation_rate
     
-    def calculate_reaction_rate(self, temperature: float, density: float) -> float:
+    def calculate_antideuteron_yield(self, T: float, density: float) -> float:
         """
-        Calculate reaction rate for particle formation
+        Calculate antideuteron formation probability based on temperature and density
         
         Args:
-            temperature: Current temperature in Kelvin
-            density: Particle density
+            T: Temperature (K)
+            density: Particle density (m^-3)
             
         Returns:
-            Reaction rate coefficient
+            Antideuteron formation rate (per second)
         """
-        # Simplified reaction rate calculation using Maxwell-Boltzmann distribution
-        thermal_velocity = np.sqrt(8 * self.kB * temperature / (np.pi * self.m_p))
-        return density * thermal_velocity * self.sigma_dd
+        if T < 1e9:
+            return 0.0
+            
+        # Boltzmann factor for antideuteron formation
+        boltzmann_factor = np.exp(-self.antideuteron_threshold / (self.kB * T))
+        
+        # Formation rate proportional to density squared and Boltzmann factor
+        formation_rate = density**2 * boltzmann_factor * 1e-20
+        
+        return formation_rate
+    
+    def calculate_reaction_rate(self, T: float, species: str = 'pp') -> float:
+        """
+        Calculate reaction rate based on temperature using Arrhenius-like formula
+        
+        Args:
+            T: Temperature (K)
+            species: Type of reaction ('pp', 'dd', 'da')
+            
+        Returns:
+            Reaction rate coefficient (m^3/s)
+        """
+        # Activation energies for different reactions (eV)
+        activation_energies = {
+            'pp': 1.0e6,
+            'dd': 2.2e6,
+            'da': 2.2e6
+        }
+        
+        Ea = activation_energies.get(species, 1.0e6)
+        Ea_J = Ea * 1.60218e-19  # Convert eV to Joules
+        
+        # Pre-exponential factor (approximate)
+        pre_exp = 1e-10
+        
+        # Arrhenius equation
+        rate = pre_exp * np.exp(-Ea_J / (self.kB * T))
+        
+        return rate
+    
+    def calculate_density(self, T: float, volume: float) -> float:
+        """
+        Estimate particle density from temperature and volume
+        
+        Args:
+            T: Temperature (K)
+            volume: Volume of system (m^3)
+            
+        Returns:
+            Particle density (m^-3)
+        """
+        # Ideal gas law approximation
+        # Using proton mass as representative particle mass
+        n = (1e28 * T / (self.kB * T)) / volume  # Simplified estimate
+        
+        return max(n, 1e10)  # Minimum density
     
     def simulate_decay_chain(self, initial_particles: Dict[str, int], 
                            time_step: float, total_time: float) -> Dict[str, List[int]]:
@@ -91,99 +136,69 @@ class PhysicsModel:
         
         Args:
             initial_particles: Dictionary of initial particle counts
-            time_step: Time step for simulation
-            total_time: Total simulation time
+            time_step: Time step for simulation (s)
+            total_time: Total simulation time (s)
             
         Returns:
             Dictionary of particle counts over time
         """
-        time_points = np.arange(0, total_time, time_step)
-        results = {key: [value] for key, value in initial_particles.items()}
-        
-        # Decay constants (approximate)
+        # Decay constants (approximate half-lives in seconds)
         decay_constants = {
-            'deuteron': 1e-22,
-            'antideuteron': 1e-22
+            'deuteron': 1e-21,  # ~100 ps
+            'antideuteron': 1e-21  # ~100 ps
         }
         
-        for t in time_points[1:]:
-            new_counts = {}
-            for particle_type, count in results.items():
-                if particle_type in decay_constants:
-                    # Simple exponential decay
-                    decay_rate = decay_constants[particle_type]
-                    new_count = max(0, count[-1] * np.exp(-decay_rate * time_step))
-                    new_counts[particle_type] = new_count
-                else:
-                    new_counts[particle_type] = count[-1]
-            
-            # Update results
-            for key, value in new_counts.items():
-                results[key].append(value)
-                
-        return results
+        # Initialize tracking
+        time_points = np.arange(0, total_time, time_step)
+        particle_history = {key: [value] for key, value in initial_particles.items()}
+        
+        # Simple exponential decay model
+        for i, t in enumerate(time_points[1:], 1):
+            for particle_type in ['deuteron', 'antideuteron']:
+                if particle_type in initial_particles:
+                    current_count = particle_history[particle_type][-1]
+                    decayed = current_count * (1 - np.exp(-decay_constants[particle_type] * time_step))
+                    new_count = max(0, current_count - decayed)
+                    particle_history[particle_type].append(new_count)
+        
+        return particle_history
     
-    def calculate_energy_threshold(self, particle_mass: float, 
-                                 temperature: float) -> float:
+    def calculate_energy_threshold(self, particle_mass: float, T: float) -> float:
         """
         Calculate minimum energy required for particle formation
         
         Args:
-            particle_mass: Mass of particle in kg
-            temperature: Current temperature in Kelvin
+            particle_mass: Mass of particle (kg)
+            T: Temperature (K)
             
         Returns:
-            Minimum energy threshold in Joules
+            Minimum energy threshold (J)
         """
-        # Thermal energy threshold
-        thermal_energy = 3 * self.kB * temperature / 2
-        # Binding energy requirement
-        binding_energy = particle_mass * self.c**2
+        # Thermal energy per degree of freedom
+        thermal_energy = 3 * self.kB * T / 2
         
-        return thermal_energy + binding_energy
+        # Required binding energy plus thermal energy
+        binding_energy = particle_mass * self.c**2  # Rest mass energy
+        
+        return binding_energy + thermal_energy
     
-    def compute_yield_distribution(self, temperature: float, 
-                                num_events: int = 1000) -> Dict[str, float]:
+    def compute_collision_cross_section(self, energy: float, particle_type: str) -> float:
         """
-        Compute statistical distribution of particle yields
+        Compute collision cross-section based on energy and particle type
         
         Args:
-            temperature: Current temperature in Kelvin
-            num_events: Number of Monte Carlo events
+            energy: Collision energy (GeV)
+            particle_type: Type of particles involved
             
         Returns:
-            Dictionary of average yields
+            Cross-section in m^2
         """
-        deuteron_probs = []
-        antideuteron_probs = []
-        
-        for _ in range(num_events):
-            # Random temperature fluctuation
-            temp_fluct = np.random.normal(temperature, temperature * 0.1)
-            
-            deuteron_prob = self.calculate_deuteron_formation_probability(temp_fluct)
-            antideuteron_prob = self.calculate_antideuteron_formation_probability(temp_fluct)
-            
-            deuteron_probs.append(deuteron_prob)
-            antideuteron_probs.append(antideuteron_prob)
-        
-        return {
-            'deuteron_yield': np.mean(deuteron_probs),
-            'antideuteron_yield': np.mean(antideuteron_probs)
-        }
-
-# Utility functions for physics calculations
-def calculate_boltzmann_factor(energy: float, temperature: float) -> float:
-    """Calculate Boltzmann factor for given energy and temperature"""
-    k_B = 1.380649e-23  # Boltzmann constant
-    return np.exp(-energy / (k_B * temperature))
-
-def calculate_maxwell_boltzmann_velocity(temperature: float, mass: float, 
-                                       dimension: int = 3) -> float:
-    """Calculate most probable velocity from Maxwell-Boltzmann distribution"""
-    k_B = 1.380649e-23
-    return np.sqrt(dimension * k_B * temperature / mass)
-
-def calculate_cross_section_ratio(sigma1: float, sigma2: float) -> float:
-    """Calculate ratio of two cross-sections"""
-    return sigma1 / sigma2 if sigma2 != 0 else 0.0
+        # Simplified power-law dependence
+        if particle_type == 'proton':
+            return self.sigma_pp * (energy / 1000)**(-0.5)
+        elif particle_type == 'deuteron':
+            return self.sigma_dd * (energy / 1000)**(-0.3)
+        elif particle_type == 'antideuteron':
+            return self.sigma_da * (energy / 1000)**(-0.3)
+        else:
+            return 1e-28
