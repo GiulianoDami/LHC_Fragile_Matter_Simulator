@@ -2,34 +2,55 @@
   "simulation": {
     "name": "LHC_Fragile_Matter_Simulator",
     "version": "1.0.0",
-    "description": "Monte Carlo simulation of fragile nuclear particle formation in high-energy collisions"
+    "description": "Monte Carlo simulation for fragile nuclear particle formation in high-energy collisions"
   },
-  "collision_parameters": {
-    "initial_temperature": 1.5e12,
-    "collision_energy": 13000,
-    "duration": 1e-23,
-    "temperature_cooling_rate": 1.2e11,
-    "energy_threshold_deuteron": 1.5,
-    "energy_threshold_antideuteron": 1.5
+  "parameters": {
+    "initial_temperature": {
+      "value": 1.5e12,
+      "unit": "Kelvin",
+      "description": "Initial temperature of the collision fireball"
+    },
+    "collision_energy": {
+      "value": 13000,
+      "unit": "GeV",
+      "description": "Total collision energy"
+    },
+    "duration": {
+      "value": 1e-23,
+      "unit": "seconds",
+      "description": "Total simulation duration"
+    },
+    "temperature_cooling_rate": {
+      "value": 1e20,
+      "unit": "K/s",
+      "description": "Rate of temperature decrease during expansion"
+    },
+    "particle_formations": {
+      "deuteron_energy_threshold": {
+        "value": 100,
+        "unit": "MeV",
+        "description": "Energy threshold for deuteron formation"
+      },
+      "antideuteron_energy_threshold": {
+        "value": 100,
+        "unit": "MeV",
+        "description": "Energy threshold for antideuteron formation"
+      }
+    }
   },
-  "particle_properties": {
-    "deuteron_mass": 3.343583719e-27,
-    "antideuteron_mass": 3.343583719e-27,
-    "deuteron_binding_energy": 2.22457,
-    "antideuteron_binding_energy": 2.22457,
-    "formation_probability": 0.001
-  },
-  "simulation_settings": {
-    "time_step": 1e-25,
-    "max_steps": 10000,
+  "settings": {
+    "monte_carlo_steps": 100000,
     "random_seed": 42,
-    "monte_carlo_samples": 100000,
-    "output_frequency": 100
+    "output_interval": 1000,
+    "visualization": {
+      "enabled": true,
+      "plot_temperature_evolution": true,
+      "plot_particle_distribution": true
+    }
   },
-  "visualization": {
-    "plot_temperature_evolution": true,
-    "plot_particle_distribution": true,
-    "save_plots": true,
-    "output_directory": "./results/"
+  "output": {
+    "results_file": "simulation_results.json",
+    "plots_directory": "plots/",
+    "log_file": "simulation.log"
   }
 }
