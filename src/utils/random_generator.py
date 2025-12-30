@@ -1,124 +1,111 @@
 import numpy as np
-from typing import Tuple, List
 
 class RandomGenerator:
-    """
-    A utility class for generating random numbers and samples
-    used throughout the LHC Fragile Matter Simulator.
-    """
+    """A utility class for generating random numbers and samples for the simulation."""
     
-    def __init__(self, seed: int = None):
+    def __init__(self, seed=None):
         """
-        Initialize the random number generator with an optional seed.
+        Initialize the random number generator.
         
         Args:
-            seed (int): Random seed for reproducible results
+            seed (int, optional): Seed for the random number generator
         """
         if seed is not None:
             np.random.seed(seed)
     
     @staticmethod
-    def generate_uniform_sample(size: int = 1) -> np.ndarray:
+    def generate_uniform(low=0.0, high=1.0, size=None):
         """
-        Generate uniform random samples between 0 and 1.
+        Generate random numbers from a uniform distribution.
         
         Args:
-            size (int): Number of samples to generate
+            low (float): Lower bound of the distribution
+            high (float): Upper bound of the distribution
+            size (int or tuple): Output shape
             
         Returns:
-            np.ndarray: Array of uniform random samples
+            ndarray or scalar: Random numbers from the uniform distribution
         """
-        return np.random.uniform(0, 1, size)
+        return np.random.uniform(low, high, size)
     
     @staticmethod
-    def generate_normal_sample(mean: float, std: float, size: int = 1) -> np.ndarray:
+    def generate_normal(mean=0.0, std=1.0, size=None):
         """
-        Generate normally distributed random samples.
+        Generate random numbers from a normal distribution.
         
         Args:
-            mean (float): Mean of the normal distribution
-            std (float): Standard deviation of the normal distribution
-            size (int): Number of samples to generate
+            mean (float): Mean of the distribution
+            std (float): Standard deviation of the distribution
+            size (int or tuple): Output shape
             
         Returns:
-            np.ndarray: Array of normally distributed samples
+            ndarray or scalar: Random numbers from the normal distribution
         """
         return np.random.normal(mean, std, size)
     
     @staticmethod
-    def generate_exponential_sample(scale: float, size: int = 1) -> np.ndarray:
+    def generate_exponential(scale=1.0, size=None):
         """
-        Generate exponentially distributed random samples.
+        Generate random numbers from an exponential distribution.
         
         Args:
-            scale (float): Scale parameter (1/lambda) for exponential distribution
-            size (int): Number of samples to generate
+            scale (float): Scale parameter (1/lambda)
+            size (int or tuple): Output shape
             
         Returns:
-            np.ndarray: Array of exponentially distributed samples
+            ndarray or scalar: Random numbers from the exponential distribution
         """
         return np.random.exponential(scale, size)
     
     @staticmethod
-    def generate_poisson_sample(lam: float, size: int = 1) -> np.ndarray:
+    def generate_poisson(lam=1.0, size=None):
         """
-        Generate Poisson-distributed random samples.
+        Generate random numbers from a Poisson distribution.
         
         Args:
-            lam (float): Lambda parameter (mean) for Poisson distribution
-            size (int): Number of samples to generate
+            lam (float): Lambda parameter (expected value)
+            size (int or tuple): Output shape
             
         Returns:
-            np.ndarray: Array of Poisson-distributed samples
+            ndarray or scalar: Random numbers from the Poisson distribution
         """
         return np.random.poisson(lam, size)
     
     @staticmethod
-    def weighted_choice(choices: List[Tuple], weights: List[float]) -> Tuple:
+    def choice(a, size=None, replace=True, p=None):
         """
-        Select an item from choices based on weighted probabilities.
+        Generate a random sample from a given 1-D array.
         
         Args:
-            choices (List[Tuple]): List of items to choose from
-            weights (List[float]): Corresponding weights for each choice
+            a (1-D array-like): Input array
+            size (int or tuple): Output shape
+            replace (bool): Whether to sample with replacement
+            p (1-D array-like): Probabilities for each element
             
         Returns:
-            Tuple: Selected choice
+            ndarray or scalar: Random sample(s) from the input array
         """
-        total = sum(weights)
-        r = np.random.uniform(0, total)
-        upto = 0
-        for choice, weight in zip(choices, weights):
-            if upto + weight >= r:
-                return choice
-            upto += weight
-        return choices[-1]  # Fallback
+        return np.random.choice(a, size, replace, p)
     
     @staticmethod
-    def shuffle_array(arr: np.ndarray) -> np.ndarray:
+    def shuffle(x):
         """
-        Shuffle array elements randomly.
+        Modify a sequence in-place by shuffling its contents.
         
         Args:
-            arr (np.ndarray): Array to shuffle
-            
-        Returns:
-            np.ndarray: Shuffled array
+            x (array-like): The array to be shuffled
         """
-        shuffled = arr.copy()
-        np.random.shuffle(shuffled)
-        return shuffled
+        np.random.shuffle(x)
     
     @staticmethod
-    def random_selection(arr: np.ndarray, k: int) -> np.ndarray:
+    def permutation(x):
         """
-        Randomly select k elements from array without replacement.
+        Randomly permute a sequence, or return a permuted range.
         
         Args:
-            arr (np.ndarray): Array to sample from
-            k (int): Number of elements to select
+            x (array-like): The array to be shuffled
             
         Returns:
-            np.ndarray: Array of selected elements
+            ndarray: A new shuffled array
         """
-        return np.random.choice(arr, size=k, replace=False)
+        return np.random.permutation(x)
