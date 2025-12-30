@@ -3,113 +3,102 @@ from scipy import integrate
 from typing import Tuple, List
 
 def calculate_temperature_evolution(initial_temp: float, time: np.ndarray, 
-                                  cooling_rate: float = 1e38) -> np.ndarray:
+                                  cooling_rate: float = 1e12) -> np.ndarray:
     """
-    Calculate temperature evolution over time based on cooling rate.
+    Calculate temperature evolution over time during collision event.
     
     Args:
         initial_temp: Initial temperature in Kelvin
-        time: Array of time points
-        cooling_rate: Rate of temperature decrease (default: 1e38 K/s)
-        
+        time: Time array in seconds
+        cooling_rate: Cooling rate constant
+    
     Returns:
-        Array of temperatures at each time point
+        Temperature array over time
     """
     return initial_temp * np.exp(-cooling_rate * time)
 
-def calculate_energy_threshold(deuteron_mass: float = 1.875612942e-24, 
-                             binding_energy: float = 2.224575e-12) -> float:
+def calculate_energy_threshold(deuteron_binding_energy: float = 2.224, 
+                             temperature: float = 1e12) -> float:
     """
     Calculate minimum energy required for deuteron formation.
     
     Args:
-        deuteron_mass: Mass of deuteron in kg
-        binding_energy: Binding energy in Joules
-        
+        deuteron_binding_energy: Binding energy of deuteron in MeV
+        temperature: Current temperature in Kelvin
+    
     Returns:
-        Minimum energy threshold in Joules
+        Energy threshold in MeV
     """
-    return deuteron_mass * 299792458**2 + binding_energy
+    # Convert temperature to energy scale (kB*T)
+    kb = 8.617e-5  # eV/K
+    thermal_energy = kb * temperature
+    
+    # Return threshold energy (binding energy + thermal energy)
+    return deuteron_binding_energy + thermal_energy
 
-def integrate_particle_yield(temperature_profile: np.ndarray, 
-                           time_points: np.ndarray,
-                           formation_cross_section: callable,
-                           particle_density: float = 1e30) -> float:
+def integrate_particle_yield(energy_distribution: np.ndarray, 
+                           cross_section: np.ndarray,
+                           energy_grid: np.ndarray) -> float:
     """
-    Integrate particle yield over time using numerical integration.
+    Integrate particle yield over energy distribution.
     
     Args:
-        temperature_profile: Array of temperatures over time
-        time_points: Time points corresponding to temperature profile
-        formation_cross_section: Function returning cross-section at given temp
-        particle_density: Number density of target particles
-        
+        energy_distribution: Energy distribution function
+        cross_section: Cross-section data
+        energy_grid: Energy grid points
+    
     Returns:
-        Total integrated particle yield
+        Integrated particle yield
     """
-    # Calculate formation rate at each time step
-    formation_rates = []
-    for T in temperature_profile:
-        sigma = formation_cross_section(T)
-        rate = sigma * particle_density * 299792458  # Simplified rate calculation
-        formation_rates.append(rate)
-    
-    formation_rates = np.array(formation_rates)
-    
-    # Integrate using trapezoidal rule
-    yield_integral = integrate.trapz(formation_rates, time_points)
-    
-    return yield_integral
+    return integrate.simpson(energy_distribution * cross_section, energy_grid)
 
-def boltzmann_distribution(energy: float, temperature: float) -> float:
+def calculate_decay_probability(lifetime: float, time: float) -> float:
     """
-    Calculate Boltzmann probability distribution.
+    Calculate probability of particle survival after given time.
     
     Args:
-        energy: Energy in Joules
-        temperature: Temperature in Kelvin
-        
-    Returns:
-        Probability density
-    """
-    k_boltzmann = 1.380649e-23  # J/K
-    if temperature <= 0:
-        return 0
-    return np.exp(-energy / (k_boltzmann * temperature))
-
-def calculate_decay_chain_probability(decay_constants: List[float], 
-                                    time: float) -> float:
-    """
-    Calculate probability of surviving decay chain.
+        lifetime: Particle lifetime in seconds
+        time: Time elapsed in seconds
     
-    Args:
-        decay_constants: List of decay constants for each stage
-        time: Time elapsed
-        
     Returns:
         Survival probability
     """
-    total_decay = sum([k * time for k in decay_constants])
-    return np.exp(-total_decay)
+    return np.exp(-time / lifetime)
 
-def statistical_sampling(n_samples: int, distribution_func: callable, 
-                        param_range: Tuple[float, float]) -> np.ndarray:
+def generate_gaussian_noise(mean: float, std: float, size: int) -> np.ndarray:
     """
-    Generate statistical samples from a given distribution.
+    Generate Gaussian distributed random numbers.
     
     Args:
-        n_samples: Number of samples to generate
-        distribution_func: Function defining the distribution
-        param_range: Range of parameters for sampling
-        
-    Returns:
-        Array of sampled values
-    """
-    samples = []
-    while len(samples) < n_samples:
-        x = np.random.uniform(param_range[0], param_range[1])
-        y = np.random.uniform(0, 1)
-        if y <= distribution_func(x):
-            samples.append(x)
+        mean: Mean value
+        std: Standard deviation
+        size: Number of samples
     
-    return np.array(samples)
+    Returns:
+        Array of Gaussian random numbers
+    """
+    return np.random.normal(mean, std, size)
+
+def normalize_distribution(data: np.ndarray) -> np.ndarray:
+    """
+    Normalize a probability distribution to sum to 1.
+    
+    Args:
+        data: Input data array
+    
+    Returns:
+        Normalized distribution
+    """
+    return data / np.sum(data)
+
+def calculate_statistical_uncertainty(counts: np.ndarray) -> np.ndarray:
+    """
+    Calculate statistical uncertainty for Poisson-distributed counts.
+    
+    Args:
+        counts: Array of count values
+    
+    Returns:
+        Array of uncertainties
+    """
+    return np.sqrt(counts)
