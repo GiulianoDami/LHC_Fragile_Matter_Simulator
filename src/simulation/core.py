@@ -2,8 +2,6 @@ import numpy as np
 from typing import Dict, Tuple
 import logging
 
-logger = logging.getLogger(__name__)
-
 class ParticleSimulator:
     def __init__(self, initial_temperature: float, collision_energy: float, duration: float):
         """
@@ -19,43 +17,71 @@ class ParticleSimulator:
         self.duration = duration
         
         # Physical constants
-        self.hbar = 6.582e-22  # Reduced Planck constant in GeV*s
-        self.kb = 8.617e-5    # Boltzmann constant in eV/K
-        self.deuteron_mass = 1.87561294e9  # Deuteron mass in eV/c^2
-        self.antideuteron_mass = 1.87561294e9  # Antideuteron mass in eV/c^2
+        self.kb = 8.617e-5  # Boltzmann constant in eV/K
+        self.m_deuteron = 1.87561294257e9  # Deuteron mass in eV/c^2
+        self.m_antideuteron = 1.87561294257e9  # Antideuteron mass in eV/c^2
+        self.energy_threshold = 2 * self.m_deuteron  # Minimum energy for deuteron formation
         
         # Simulation parameters
         self.time_steps = 1000
-        self.temperature_history = []
-        self.particle_counts = {'deuteron': 0, 'antideuteron': 0}
+        self.dt = duration / self.time_steps
         
-    def _calculate_temperature_evolution(self) -> np.ndarray:
+        # Logging setup
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+        
+    def _temperature_evolution(self, t: float) -> float:
         """
-        Calculate temperature evolution over time using a simplified cooling model.
+        Calculate temperature at time t based on cooling fireball model.
         
+        Args:
+            t: Time in seconds
+            
         Returns:
-            Array of temperatures at each time step
+            Temperature in Kelvin
         """
-        # Simplified cooling law: T(t) = T0 * exp(-t/tau)
-        tau = self.duration / 5  # Cooling timescale
-        t = np.linspace(0, self.duration, self.time_steps)
-        temperatures = self.initial_temperature * np.exp(-t / tau)
-        return temperatures
+        # Simplified cooling law: T(t) = T0 * exp(-kt)
+        # k is a cooling constant
+        k = 1e25  # Cooling rate constant (arbitrary units)
+        return self.initial_temperature * np.exp(-k * t)
     
-    def _calculate_energy_threshold(self) -> float:
+    def _calculate_energy_density(self, temperature: float) -> float:
         """
-        Calculate the minimum energy required for deuteron formation.
+        Calculate energy density based on temperature.
         
+        Args:
+            temperature: Current temperature in Kelvin
+            
         Returns:
-            Energy threshold in GeV
+            Energy density in GeV/fm^3
         """
-        # Deuteron binding energy ~2.224 MeV
-        binding_energy = 2.224e-3  # Convert to GeV
-        return binding_energy
+        # Stefan-Boltzmann law scaled for nuclear matter
+        sigma = 5.67e-15  # Stefan-Boltzmann constant
+        energy_density = (sigma * temperature**4) / (np.pi**2 * 1e3)  # Convert to GeV/fm^3
+        return energy_density
     
-    def _simulate_particle_formation(self, temperature: float) -> Tuple[int, int]:
+    def _calculate_formation_probability(self, temperature: float) -> float:
         """
-        Simulate deuteron and antideuteron formation at given temperature.
+        Calculate probability of deuteron formation at given temperature.
+        
+        Args:
+            temperature: Current temperature in Kelvin
+            
+        Returns:
+            Formation probability (0-1)
+        """
+        # Simple exponential dependence on temperature
+        if temperature < 1e11:
+            return 0.0
+            
+        # Probability increases with temperature above threshold
+        threshold_temp = 1e11
+        prob = np.exp((temperature - threshold_temp) / (1e11))
+        return min(prob, 1.0)
+    
+    def _simulate_decay_chain(self, temperature: float) -> Tuple[int, int]:
+        """
+        Simulate particle decay chain to produce deuterons and antideuterons.
         
         Args:
             temperature: Current temperature in Kelvin
@@ -63,22 +89,19 @@ class ParticleSimulator:
         Returns:
             Tuple of (deuteron_count, antideuteron_count)
         """
-        # Convert temperature to GeV scale
-        temp_gev = temperature * self.kb / 1e9  # Approximate conversion
+        # Simplified statistical model
+        formation_prob = self._calculate_formation_probability(temperature)
         
-        # Energy threshold for formation
-        threshold = self._calculate_energy_threshold()
+        # Number of nucleon pairs available (simplified)
+        nucleon_pairs = max(0, int(1000 * formation_prob * np.random.rand()))
         
-        # Formation probability based on temperature and threshold
-        if temp_gev > threshold:
-            # Simple statistical model - higher temperature = more particles
-            formation_rate = min(1.0, temp_gev / threshold)
-            deuteron_count = int(np.random.poisson(formation_rate * 100))
-            antideuteron_count = int(np.random.poisson(formation_rate * 50))  # Fewer antideuterons
-        else:
-            deuteron_count = 0
-            antideuteron_count = 0
-            
+        # Production rates (simplified)
+        deuteron_rate = 0.3
+        antideuteron_rate = 0.2
+        
+        deuteron_count = int(nucleon_pairs * deuteron_rate * np.random.rand())
+        antideuteron_count = int(nucleon_pairs * antideuteron_rate * np.random.rand())
+        
         return deuteron_count, antideuteron_count
     
     def run_simulation(self) -> Dict:
@@ -88,37 +111,55 @@ class ParticleSimulator:
         Returns:
             Dictionary containing simulation results
         """
-        logger.info("Starting particle formation simulation")
+        self.logger.info("Starting particle formation simulation")
         
-        # Calculate temperature evolution
-        temperatures = self._calculate_temperature_evolution()
-        self.temperature_history = temperatures.tolist()
+        # Initialize tracking variables
+        time_points = []
+        temp_points = []
+        deuteron_counts = []
+        antideuteron_counts = []
+        energy_densities = []
         
-        # Simulate particle formation at each time step
-        total_deuterons = 0
-        total_antideuterons = 0
+        total_deuteron_count = 0
+        total_antideuteron_count = 0
         
-        for i, temp in enumerate(temperatures):
-            deuteron_count, antideuteron_count = self._simulate_particle_formation(temp)
-            total_deuterons += deuteron_count
-            total_antideuterons += antideuteron_count
+        # Main simulation loop
+        for i in range(self.time_steps):
+            t = i * self.dt
+            temperature = self._temperature_evolution(t)
+            energy_density = self._calculate_energy_density(temperature)
             
-            # Store counts at specific intervals for monitoring
-            if i % (self.time_steps // 10) == 0:
-                logger.debug(f"Time step {i}: T={temp:.2e}K, D={deuteron_count}, Dbar={antideuteron_count}")
+            # Track values for analysis
+            time_points.append(t)
+            temp_points.append(temperature)
+            energy_densities.append(energy_density)
+            
+            # Simulate particle formation
+            deuteron_count, antideuteron_count = self._simulate_decay_chain(temperature)
+            
+            deuteron_counts.append(deuteron_count)
+            antideuteron_counts.append(antideuteron_count)
+            
+            total_deuteron_count += deuteron_count
+            total_antideuteron_count += antideuteron_count
+            
+            # Log progress every 100 steps
+            if i % 100 == 0:
+                self.logger.debug(f"Time: {t:.2e}s, Temp: {temperature:.2e}K, "
+                                f"Deuterons: {deuteron_count}, Antideuterons: {antideuteron_count}")
         
-        # Store final results
-        self.particle_counts['deuteron'] = total_deuterons
-        self.particle_counts['antideuteron'] = total_antideuterons
-        
+        # Prepare results dictionary
         results = {
-            'deuteron_count': total_deuterons,
-            'antideuteron_count': total_antideuterons,
-            'temperature_history': self.temperature_history,
-            'initial_temperature': self.initial_temperature,
-            'collision_energy': self.collision_energy,
-            'duration': self.duration
+            'time_points': time_points,
+            'temperature_points': temp_points,
+            'deuteron_counts': deuteron_counts,
+            'antideuteron_counts': antideuteron_counts,
+            'energy_densities': energy_densities,
+            'deuteron_count': total_deuteron_count,
+            'antideuteron_count': total_antideuteron_count,
+            'final_temperature': temperature,
+            'initial_temperature': self.initial_temperature
         }
         
-        logger.info(f"Simulation completed. Deuterons: {total_deuterons}, Antideuterons: {total_antideuterons}")
+        self.logger.info(f"Simulation completed. Final deuteron count: {total_deuteron_count}")
         return results
